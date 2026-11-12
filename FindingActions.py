@@ -1,0 +1,81 @@
+﻿@author: Ryan Xiong
+"""
+
+import agama
+import numpy as np
+import matplotlib.pyplot as plt
+
+pot = agama.Potential(type='Spheroid',mass= 1, scaleRadius = 1)
+af = agama.ActionFinder(pot, interp=True)
+am = agama.ActionMapper(pot)
+
+act, ang = af([0,1,2.2,0.1,0.2,0.4],angles=True,frequencies=False) # [x,y,z,vx,vy,vz]
+x_given =np.array([0.2,1.1,2.3])
+v_given = np.array([0.1,0.2,0.3])
+xv_given = np.concatenate((x_given,v_given))
+
+dJ = min(act)/1000
+dq = min(ang)/1000
+
+
+J0 = act
+Q0 = ang
+JQ0 = np.concatenate((J0,Q0))
+print(JQ0)
+
+# Constructing The Jacobian Matrix, 6x6, one for each of J and Theta
+
+def dJ1(am,J,Q,dJ): 
+    
+    xv_1 = am(np.concatenate((J+[dJ,0,0],Q)),frequencies=False)
+    xv_2 = am(np.concatenate((J-[dJ,0,0],Q)),frequencies=False)
+    return (xv_1-xv_2)/(2*dJ)
+
+def dJ2(am,J,Q,dJ): 
+    
+    xv_1 = am(np.concatenate((J+np.array([0,dJ,0]),Q)),frequencies=False)
+    xv_2 = am(np.concatenate((J-np.array([0,dJ,0]),Q)),frequencies=False)
+    return (xv_1-xv_2)/(2*dJ)
+def dJ3(am,J,Q,dJ): 
+    
+    xv_1 = am(np.concatenate((J+np.array([0,0,dJ]),Q)),frequencies=False)
+    xv_2 = am(np.concatenate((J-np.array([0,0,dJ]),Q)),frequencies=False)
+    return (xv_1-xv_2)/(2*dJ)
+
+def dQ1(am,J,Q,dQ): 
+    
+    xv_1 = am(np.concatenate((J,Q+np.array([dQ,0,0]))),frequencies=False)
+    xv_2 = am(np.concatenate((J,Q-np.array([dQ,0,0]))),frequencies=False)
+    return (xv_1-xv_2)/(2*dQ)
+
+def dQ2(am,J,Q,dQ): 
+    
+    xv_1 = am(np.concatenate((J,Q+np.array([0,dQ,0]))),frequencies=False)
+    xv_2 = am(np.concatenate((J,Q-np.array([0,dQ,0]))),frequencies=False)
+    return (xv_1-xv_2)/(2*dQ)
+def dQ3(am,J,Q,dQ): 
+    
+    xv_1 = am(np.concatenate((J,Q+np.array([0,0,dQ]))),frequencies=False)
+    xv_2 = am(np.concatenate((J,Q-np.array([0,0,dQ]))),frequencies=False)
+    return (xv_1-xv_2)/(2*dQ)
+    
+        
+for i in range(10): # NewtonRaphson Iteration
+    J0 = np.array([JQ0[0],JQ0[1],JQ0[2]])
+    Q0 = np.array([JQ0[3],JQ0[4],JQ0[5]])
+    xv_current = am(JQ0,frequencies=False)
+    dxv = xv_current-xv_given
+    dxvdJ1 = dJ1(am,J0,Q0,dJ)
+    dxvdJ2 = dJ2(am,J0,Q0,dJ)
+    dxvdJ3 = dJ3(am,J0,Q0,dJ)
+    dxvdQ1 = dQ1(am,J0,Q0,dq)
+    dxvdQ2 = dQ2(am,J0,Q0,dq)
+    dxvdQ3 = dQ3(am,J0,Q0,dq)
+    
+    Jacobian = np.asmatrix([dxvdJ1,dxvdJ2,dxvdJ3,dxvdQ1,dxvdQ2,dxvdQ3]).T
+    JQ0 = JQ0 - np.asarray(np.matmul(Jacobian.I,dxv.T))[0]
+xv_current = am(JQ0,frequencies=False)
+print(JQ0) # The solved action and angle coordinates
+
+print(xv_current) # Check if the mapper yields the original xv_current
+
